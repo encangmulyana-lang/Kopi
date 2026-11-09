@@ -1,0 +1,15 @@
+{
+  "name": "Kopi Founder #70",
+  "description": "KOPI FOUNDERS \u2014 100 golden bean founders on BNB Chain. 0.001 BNB per mint, max 1 per wallet. Founders get first access to future drops and a Founder badge.",
+  "image": "https://kopi-sooty.vercel.app/images-founder/founder.svg",
+  "attributes": [
+    {
+      "trait_type": "Tier",
+      "value": "Founder"
+    },
+    {
+      "trait_type": "Token ID",
+      "value": 70
+    }
+  ]
+}
