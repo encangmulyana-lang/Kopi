@@ -1,0 +1,19 @@
+{
+  "name": "Kopi #1991",
+  "description": "KOPI \u2014 3,333 bean traders on BNB Chain. First mint FREE (gas only), max 1 per wallet. Six coffee varieties: Robusta, Arabica, Liberica, Excelsa, Luwak, and the mythic Golden Bean.",
+  "image": "https://kopi-sooty.vercel.app/images/liberica.svg",
+  "attributes": [
+    {
+      "trait_type": "Tier",
+      "value": "Liberica"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Rare"
+    },
+    {
+      "trait_type": "Token ID",
+      "value": 1991
+    }
+  ]
+}
