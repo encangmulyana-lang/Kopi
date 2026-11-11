@@ -261,8 +261,8 @@ const SEL_LISTED = "0x05337198", SEL_LISTING = "0x107a274a", SEL_OWNEROF = "0x63
 let provider=null, signer=null, userAddr=null;
 let LANG="en";
 const STR={
-en:{comingSoon:"Contract coming soon — mint not open yet.",comingSoonF:"Contract coming soon — Founder mint not open yet.",noCount:"Could not load live count — check your connection and refresh.",paused:"Mint is PAUSED — the contract is deployed, opening soon.",pausedF:"Founder mint is PAUSED — the contract is deployed, opening soon.",minted:(n,p)=>n+" of 3,333 minted ("+p+"%)",mintedF:(n,p)=>n+" of 100 Founders minted ("+p+"%)"},
-zh:{comingSoon:"合约即将上线——铸造尚未开放。",comingSoonF:"合约即将上线——创始人铸造尚未开放。",noCount:"无法加载实时数量——请检查网络后刷新。",paused:"铸造已暂停——合约已部署，即将开放。",pausedF:"创始人铸造已暂停——合约已部署，即将开放。",minted:(n,p)=>"已铸造 "+n+" / 3,333（"+p+"%）",mintedF:(n,p)=>"已铸造创始人 "+n+" / 100（"+p+"%）"}
+en:{comingSoon:"Contract coming soon — mint not open yet.",comingSoonF:"Contract coming soon — Founder mint not open yet.",noCount:"Could not load live count — check your connection and refresh.",paused:"Mint is PAUSED — the contract is deployed, opening soon.",pausedF:"Founder mint is PAUSED — the contract is deployed, opening soon.",minted:(n,p)=>n+" of 3,333 minted ("+p+"%)",mintedF:(n,p)=>n+" of 100 Founders minted ("+p+"%)",txWalletFee:"Your wallet could not prepare this transaction (empty answer from the browser). Open this site inside your wallet app browser (MetaMask / Trust Wallet / Binance Wallet) and try again."},
+zh:{comingSoon:"合约即将上线——铸造尚未开放。",comingSoonF:"合约即将上线——创始人铸造尚未开放。",noCount:"无法加载实时数量——请检查网络后刷新。",paused:"铸造已暂停——合约已部署，即将开放。",pausedF:"创始人铸造已暂停——合约已部署，即将开放。",minted:(n,p)=>"已铸造 "+n+" / 3,333（"+p+"%）",mintedF:(n,p)=>"已铸造创始人 "+n+" / 100（"+p+"%）",txWalletFee:"您的钱包无法准备这笔交易（浏览器返回了空响应）。请在钱包应用内浏览器（MetaMask / Trust Wallet / Binance Wallet）中打开本网站，然后重试。"}
 };
 function setLang(l){ LANG=l; document.documentElement.lang=l==="zh"?"zh-CN":"en"; document.getElementById("langEn").classList.toggle("on",l==="en"); document.getElementById("langZh").classList.toggle("on",l==="zh"); document.querySelectorAll("[data-en]").forEach(el=>{ if((el.id==="connectBtn"||el.id==="connectBtnF"||el.id==="navConnect")&&userAddr) return; el.textContent=el.dataset[l==="zh"?"zh":"en"]; }); document.querySelectorAll("[data-en-html]").forEach(el=>{ el.innerHTML=el.dataset[l==="zh"?"zhHtml":"enHtml"]; }); refresh(); }
 async function rpcCall(to,data){
@@ -270,6 +270,21 @@ async function rpcCall(to,data){
     try{ const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"eth_call",params:[{to,data},"latest"]})});
       const j=await r.json(); if(j.result) return j.result; }catch(e){}
   } return null;
+}
+async function rpcGasPrice(){
+  for(const url of RPCS){
+    try{ const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"eth_gasPrice",params:[]})});
+      const j=await r.json(); if(j.result) return BigInt(j.result); }catch(e){}
+  } return 1000000000n;
+}
+function txErrMsg(e){
+  const m=(e&&e.message)||String(e||"");
+  if(m.indexOf("invalid BigNumberish")>=0||m.indexOf("value=null")>=0){ return STR[LANG].txWalletFee; }
+  return (e&&e.reason)||m;
+}
+async function sendTx(tx,gasLimit){
+  const gp=await rpcGasPrice();
+  return signer.sendTransaction({...tx,gasPrice:gp,gasLimit:BigInt(gasLimit)});
 }
 async function refresh(){
   const mintBtn=document.getElementById("mintBtn");
@@ -329,12 +344,12 @@ async function mintNow(){
   if(!signer){ await connectWallet(); if(!signer) return; }
   try{
     const iface=new ethers.Interface(["function mint(uint256 quantity)"]);
-    const tx=await signer.sendTransaction({to:CONTRACT,data:iface.encodeFunctionData("mint",[1]),value:0n});
+    const tx=await sendTx({to:CONTRACT,data:iface.encodeFunctionData("mint",[1]),value:0n},300000);
     document.getElementById("mintMsg").textContent="Transaction sent: "+tx.hash+" — waiting for confirmation…";
     await tx.wait();
     document.getElementById("mintMsg").textContent="Minted your bean! Tx: "+tx.hash;
     refresh();
-  }catch(e){ document.getElementById("mintMsg").textContent="Mint failed: "+(e.reason||e.message||e); }
+  }catch(e){ document.getElementById("mintMsg").textContent="Mint failed: "+txErrMsg(e); }
 }
 async function mintFounder(){
   if(!FOUNDER){ document.getElementById("mintMsgF").textContent="Founder mint is not open yet."; return; }
@@ -343,12 +358,12 @@ async function mintFounder(){
     const res=await rpcCall(FOUNDER,SEL_PRICE);
     const value=res?BigInt(res):1000000000000000n;
     const iface=new ethers.Interface(["function mint(uint256 quantity)"]);
-    const tx=await signer.sendTransaction({to:FOUNDER,data:iface.encodeFunctionData("mint",[1]),value});
+    const tx=await sendTx({to:FOUNDER,data:iface.encodeFunctionData("mint",[1]),value},300000);
     document.getElementById("mintMsgF").textContent="Transaction sent: "+tx.hash+" — waiting for confirmation…";
     await tx.wait();
     document.getElementById("mintMsgF").textContent="Welcome, Founder! Tx: "+tx.hash;
     refresh();
-  }catch(e){ document.getElementById("mintMsgF").textContent="Mint failed: "+(e.reason||e.message||e); }
+  }catch(e){ document.getElementById("mintMsgF").textContent="Mint failed: "+txErrMsg(e); }
 }
 
 function shortAddr(a){ return a.slice(0,6)+"…"+a.slice(-4); }
@@ -405,40 +420,40 @@ async function listNow(){
     if(!approved){
       document.getElementById("marketMsg").textContent="Approving the market to hold your NFT…";
       const ifaceA=new ethers.Interface(["function setApprovalForAll(address operator, bool approved)"]);
-      const txA=await signer.sendTransaction({to:CONTRACT,data:ifaceA.encodeFunctionData("setApprovalForAll",[MARKET,true])});
+      const txA=await sendTx({to:CONTRACT,data:ifaceA.encodeFunctionData("setApprovalForAll",[MARKET,true])},100000);
       await txA.wait();
     }
     const iface=new ethers.Interface(["function list(uint256 tokenId, uint256 price)"]);
-    const tx=await signer.sendTransaction({to:MARKET,data:iface.encodeFunctionData("list",[id,priceWei])});
+    const tx=await sendTx({to:MARKET,data:iface.encodeFunctionData("list",[id,priceWei])},300000);
     document.getElementById("marketMsg").textContent="Transaction sent: "+tx.hash+" — waiting for confirmation…";
     await tx.wait();
     document.getElementById("marketMsg").textContent="Listed! Tx: "+tx.hash;
     loadMarket();
-  }catch(e){ document.getElementById("marketMsg").textContent="List failed: "+(e.reason||e.message||e); }
+  }catch(e){ document.getElementById("marketMsg").textContent="List failed: "+txErrMsg(e); }
 }
 async function buyNow(id,priceWei){
   if(!MARKET) return;
   if(!signer){ await connectWallet(); if(!signer) return; }
   try{
     const iface=new ethers.Interface(["function buy(uint256 tokenId)"]);
-    const tx=await signer.sendTransaction({to:MARKET,data:iface.encodeFunctionData("buy",[id]),value:BigInt(priceWei)});
+    const tx=await sendTx({to:MARKET,data:iface.encodeFunctionData("buy",[id]),value:BigInt(priceWei)},300000);
     document.getElementById("marketMsg").textContent="Transaction sent: "+tx.hash+" — waiting for confirmation…";
     await tx.wait();
     document.getElementById("marketMsg").textContent="Bought! Tx: "+tx.hash;
     loadMarket(); refresh();
-  }catch(e){ document.getElementById("marketMsg").textContent="Buy failed: "+(e.reason||e.message||e); }
+  }catch(e){ document.getElementById("marketMsg").textContent="Buy failed: "+txErrMsg(e); }
 }
 async function cancelNow(id){
   if(!MARKET) return;
   if(!signer){ await connectWallet(); if(!signer) return; }
   try{
     const iface=new ethers.Interface(["function cancel(uint256 tokenId)"]);
-    const tx=await signer.sendTransaction({to:MARKET,data:iface.encodeFunctionData("cancel",[id])});
+    const tx=await sendTx({to:MARKET,data:iface.encodeFunctionData("cancel",[id])},200000);
     document.getElementById("marketMsg").textContent="Transaction sent: "+tx.hash+" — waiting for confirmation…";
     await tx.wait();
     document.getElementById("marketMsg").textContent="Listing cancelled. Tx: "+tx.hash;
     loadMarket();
-  }catch(e){ document.getElementById("marketMsg").textContent="Cancel failed: "+(e.reason||e.message||e); }
+  }catch(e){ document.getElementById("marketMsg").textContent="Cancel failed: "+txErrMsg(e); }
 }
 async function updatePriceNow(id){
   if(!MARKET) return;
@@ -450,12 +465,12 @@ async function updatePriceNow(id){
   if(priceWei<=0n){ document.getElementById("marketMsg").textContent="Enter a price above 0 BNB."; return; }
   try{
     const iface=new ethers.Interface(["function updatePrice(uint256 tokenId, uint256 newPrice)"]);
-    const tx=await signer.sendTransaction({to:MARKET,data:iface.encodeFunctionData("updatePrice",[id,priceWei])});
+    const tx=await sendTx({to:MARKET,data:iface.encodeFunctionData("updatePrice",[id,priceWei])},200000);
     document.getElementById("marketMsg").textContent="Transaction sent: "+tx.hash+" — waiting for confirmation…";
     await tx.wait();
     document.getElementById("marketMsg").textContent="Price updated. Tx: "+tx.hash;
     loadMarket();
-  }catch(e){ document.getElementById("marketMsg").textContent="Update price failed: "+(e.reason||e.message||e); }
+  }catch(e){ document.getElementById("marketMsg").textContent="Update price failed: "+txErrMsg(e); }
 }
 
 refresh(); loadMarket(); setInterval(refresh,30000);
